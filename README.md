@@ -1,150 +1,138 @@
-# House Prices - Advanced Regression Techniques
+# House Prices — Advanced Regression Techniques
 
-კონკურსის მიმოხილვა
+## Competition overview
 
-### Kaggle-ის House Prices კონკურსის მიზანია საცხოვრებელი სახლების ფასის პროგნოზირება სხვადასხვა მახასიათებლის საფუძველზე (მაგ: ფართობი, მდებარეობა, ხარისხი და ა.შ.).
+The goal of Kaggle's [House Prices](https://www.kaggle.com/c/house-prices-advanced-regression-techniques) competition is to predict residential house prices from a range of features (area, location, quality, and so on). Submissions are scored by Root Mean Squared Error on a logarithmic scale (log RMSE).
 
-მოდელი ფასდება Root Mean Squared Error (RMSE) მეტრიკით ლოგარითმულ სკალაზე (log RMSE).
+**Result: Kaggle public score ~0.135.**
 
-რეპოზიტორიის სტრუქტურა
+## Repository structure
+
+```
 proj1/
-│
-├── experiment.ipynb ← EDA, preprocessing, feature engineering, ექსპერიმენტები
-├── inference.ipynb ← საუკეთესო მოდელით prediction და submission
-├── README.md
-ფაილების აღწერა
-ფაილი აღწერა
-experiment.ipynb მონაცემთა ანალიზი, preprocessing, feature engineering და მოდელების ექსპერიმენტები
-inference.ipynb საბოლოო მოდელის გამოყენება test მონაცემებზე და submission გენერაცია
+├── experiment.ipynb   # EDA, preprocessing, feature engineering, model experiments
+├── inference.ipynb    # prediction with the best model, submission generation
+└── README.md
+```
 
-## მონაცემთა გაწმენდა და დამუშავება (Cleaning & Preprocessing)
+| File | Description |
+|---|---|
+| `experiment.ipynb` | Data analysis, preprocessing, feature engineering, and model experiments |
+| `inference.ipynb` | Applying the final model to the test data and generating the submission |
 
-1. Missing values ანალიზი
+## Cleaning and preprocessing
 
-მონაცემებში გამოვთვალე თითოეული სვეტის missing value პროცენტი:
+### Missing value analysis
 
-na_percent = (train_df.isnull().sum() / len(train_df)) \* 100
+The percentage of missing values was computed per column:
 
-![Alt text](imageNAs.png)
+```python
+na_percent = (train_df.isnull().sum() / len(train_df)) * 100
+```
 
-2. მაღალი missing value მქონე სვეტების მოცილება
+### Dropping high-missingness columns
 
-სვეტები, სადაც missing value ≥ 40% იყო, სრულად ამოვიღე.
+Columns with ≥ 40% missing values were removed entirely.
 
-მიზეზი: როდესაც სვეტის დიდი ნაწილი ცარიელია, მისი შევსება ხშირად noise-ს ამატებს და მოდელს აუარესებს.
+Rationale: when most of a column is empty, imputing it often adds noise and degrades the model.
 
-3. კატეგორიული სვეტების კოდირება
+### Encoding categorical columns
 
-კატეგორიული სვეტები გადავიყვანე რიცხვებად factorize მეთოდით.
+Categorical columns were converted to numeric codes with `factorize`, assigning each category a unique integer.
 
-ეს ნიშნავს, რომ თითოეულ კატეგორიას მიენიჭა უნიკალური integer მნიშვნელობა.
+### Imputing numeric NA values
 
-4. რიცხვითი NA მნიშვნელობების შევსება
+For `LotFrontage`, `GarageYrBlt`, and `MasVnrArea`, the column median was used:
 
-შემდეგ სვეტებში:
-
-LotFrontage
-GarageYrBlt
-MasVnrArea
-
-გამოვიყენე მედიანა:
-
+```python
 median = X_train[col].median()
+```
 
-მედიანა ავირჩიე იმიტომ, რომ ის უფრო მდგრადია outliers-ის მიმართ.
+The median was chosen because it is more robust to outliers than the mean.
 
-## Feature Engineering
+## Feature engineering
 
-1. Target transformation
-   y = np.log1p(train_df["SalePrice"])
+### Target transformation
 
-მიზეზი:
+```python
+y = np.log1p(train_df["SalePrice"])
+```
 
-ფასები skewed არის
-კონკურსი იყენებს log RMSE-ს
-→ ეს მნიშვნელოვნად აუმჯობესებს შედეგს
+Rationale: prices are right-skewed, and the competition scores on log RMSE — so transforming the target aligns the training objective with the evaluation metric and materially improves the score.
 
-2.  Skewed feature-ების ტრანსფორმაცია
+### Transforming skewed features
 
-ვიპოვე skewed სვეტები და გამოვიყენე log ტრანსფორმაცია:
+Skewed columns were identified and log-transformed:
 
+```python
 skewed_feats = X_train[numeric_feats].skew()
 np.log1p()
+```
 
-მიზანი:
+The aim is to compress large values, reduce the influence of outliers, and give the features a better-behaved distribution.
 
-დიდი მნიშვნელობების შემცირება
-outlier-ების გავლენის შემცირება
-უკეთესი განაწილება
+## Feature selection
 
-## Feature Selection
+### Correlation filter (threshold = 0.8)
 
-კორელაციის ფილტრი (Threshold = 0.8)
+Columns very strongly correlated with one another were removed.
 
-ამოვიღე სვეტები, რომლებიც ერთმანეთთან ძალიან ძლიერად იყო დაკავშირებული.
+Rationale: high correlation means redundant information, and dropping it reduces overfitting.
 
-მიზეზი:
+## Improved categorical handling
 
-მაღალი კორელაცია ნიშნავს redundant ინფორმაციას
-ამცირებს overfitting-ს
+### Ordinal encoding (quality features)
 
-კატეგორიული Feature-ების გაუმჯობესება
+The following columns have a natural ordering, so they were encoded by rank rather than arbitrarily:
 
-1. Ordinal encoding (quality features)
+`ExterQual`, `BsmtQual`, `KitchenQual`, `GarageQual`
 
-შემდეგ სვეტებში გამოვიყენე ranking:
+```python
+{"Ex": 5, "Gd": 4, "TA": 3, "Fa": 2, "Po": 1}
+```
 
-ExterQual
-BsmtQual
-KitchenQual
-GarageQual
-{"Ex":5, "Gd":4, "TA":3, "Fa":2, "Po":1}
+### Handling missing categories
 
-ამ სვეტებს აქვთ ბუნებრივი რიგი, ამიტომ ასეთი კოდირება უკეთ მუშაობს.
+```python
+fillna("None")
+```
 
-2. Missing კატეგორიების დამუშავება
-   fillna("None")
+This makes `"None"` a category in its own right rather than a gap.
 
-ეს ნიშნავს, რომ "None" ხდება ცალკე კატეგორია.
+### One-hot encoding
 
-3. One-Hot Encoding
+Nominal categories were expanded with `pd.get_dummies()`, then the train, validation, and test frames were reconciled with `align()` so all three share the same column set.
 
-ნომინალური კატეგორიები გადავიყვანე:
+## Model
 
-pd.get_dummies()
-
-შემდეგ დავასინქრონე train, validation და test მონაცემები:
-
-align()
-
-## მოდელი
-
-გამოვიყენე XGBoost Regressor:
-
+```python
 xgb.XGBRegressor(
-n_estimators=1000,
-max_depth=5,
-learning_rate=0.05,
-subsample=0.8,
-colsample_bytree=0.8
+    n_estimators=1000,
+    max_depth=5,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8
 )
+```
 
-რატომ XGBoost:
+**Why XGBoost:** it performs well on tabular data, selects informative features automatically, and is robust to noise.
 
-კარგად მუშაობს tabular მონაცემებზე
-ავტომატურად არჩევს მნიშვნელოვან feature-ებს
-robust არის noise-ის მიმართ
-შეფასება
+### Evaluation
 
-Validation-ზე გამოვითვალე RMSE:
+RMSE on the validation set:
 
+```python
 np.sqrt(mean_squared_error(y_val, preds))
-Submission
+```
 
-რადგან target log-ტრანსფორმირებულია:
+### Submission
 
+Since the target was log-transformed, predictions are inverted before submission:
+
+```python
 test_preds = np.expm1(model.predict(test_df))
+```
 
-შედეგი
+## Result
 
-Kaggle Public Score: ~0.135
+Kaggle public score: **~0.135**
